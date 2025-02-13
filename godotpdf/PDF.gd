@@ -6,6 +6,7 @@ var _pages = []
 var _title = ""
 var _creator = ""
 var _pageSize = Vector2i(612, 792)
+var _font = "Helvetica"
 
 class _text:
 	func _init(text="", size=12, position=Vector2i(0,0)) -> void:
@@ -43,6 +44,10 @@ func setTitle(t):
 
 func setCreator(c):
 	_creator = c
+
+func setFont(f):
+	if f == "Times Roman" or f == "Helvetical" or f == "Courier":
+		_font = f
 
 func newPage() -> bool:
 	_pages.append(_page.new())
@@ -89,6 +94,9 @@ func export(path : String) -> bool:
 	content += _addInfo("Test", "Nolan")		# add new info object
 	
 	_xref.append(len(content))
+	content += _addFont()					# add font object
+	
+	_xref.append(len(content))
 	content += _addPageTree()			# add page tree
 	
 	while(len(_pages) > 0):
@@ -110,6 +118,12 @@ func export(path : String) -> bool:
 	file.close()
 	
 	return true
+
+func _addFont():
+	var ret = str(len(_xref)) + " 0 obj\n<<\n"
+	ret += "/Type /Font\n/Subtype /Type1\n/BaseFont /" + _font
+	ret += "\n>>\nendobj\n"
+	return ret
 
 func _addInfo(Title=null, Creator=null):
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
@@ -147,7 +161,7 @@ func _buildTrailer():
 func _addCatalog():
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
 	ret += "/Type /Catalog\n"
-	ret += "/Pages 2 0 R\n"
+	ret += "/Pages 3 0 R\n"
 	ret += ">>\nendobj\n"
 	return ret
 
@@ -159,7 +173,7 @@ func _addPageTree():
 	var pageNum = -1
 	for i in _pages:
 		pageNum += 1
-		ret += str(3 + (pageNum*2)) + " 0 R "
+		ret += str(4 + (pageNum*2)) + " 0 R "
 	ret += "]\n"
 	ret += ">>\nendobj\n"
 	return ret
@@ -167,7 +181,8 @@ func _addPageTree():
 func _addPage():
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
 	ret += "/Type /Page\n"
-	ret += "/Parent 2 0 R\n"
+	ret += "/Parent 3 0 R\n"
+	ret += "/Resources <</Font <</F1 2 0 R>>>>\n"
 	ret += "/Contents [" + str(len(_xref)+1) + " 0 R]\n"
 	ret += ">>\nendobj>>\n"
 	return ret
@@ -201,7 +216,7 @@ func _addPageContent():
 		var lastPos = null
 		var lastSize = 0
 		for i in textContent:
-			contentStream += str(i.fontSize) + " Tf\n"
+			contentStream += "/F1 " + str(i.fontSize) + " Tf\n"
 			if lastPos:
 				contentStream += str(i.position.x - lastPos.x) + " " + str((i.position.y - i.fontSize) - (lastPos.y - lastSize)) + " Td\n"
 			else:
