@@ -62,7 +62,7 @@ func newLabel(pageNum : int, labelPosition, labelText : String, labelSize=12) ->
 	_pages[pageNum-1].text.append(label)
 	return true
 
-func newBox(pageNum : int, boxPosition, boxSize, fill : Color = Color(0.0,0.0,0.0,1.0), border=null, borderWidth : int = 2) -> bool:
+func newBox(pageNum : int, boxPosition, boxSize, fill = Color(0.0,0.0,0.0,1.0), border=null, borderWidth : int = 2) -> bool:
 	if boxPosition is Vector2:
 		boxPosition = Vector2i(boxPosition)
 	if not boxPosition is Vector2i:
