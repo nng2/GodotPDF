@@ -199,14 +199,16 @@ func _addPageContent():
 	if len(textContent) > 0:	# Draw text
 		contentStream += "BT\n"
 		var lastPos = null
+		var lastSize = 0
 		for i in textContent:
 			contentStream += str(i.fontSize) + " Tf\n"
 			if lastPos:
-				contentStream += str(i.position.x - lastPos.x) + " " + str(i.position.y - lastPos.y - i.fontSize) + " Td\n"
+				contentStream += str(i.position.x - lastPos.x) + " " + str((i.position.y - i.fontSize) - (lastPos.y - lastSize)) + " Td\n"
 			else:
 				contentStream += str(i.position.x) + " " + str(i.position.y - i.fontSize) + " Td\n"
 			contentStream += "(" + i.text + ") Tj\n"
 			lastPos = i.position
+			lastSize = i.fontSize
 		contentStream += "ET"
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
 	ret += "/Length " + str(len(contentStream)) + "\n"
