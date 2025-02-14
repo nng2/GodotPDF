@@ -188,7 +188,8 @@ func export(path : String) -> bool:
 
 func _addFont(font, contentLength, file : FileAccess):
 	var fontWidths = "["
-	var f = load(font.fontPath)
+	var f = FontFile.new()
+	f.load_dynamic_font(font.fontPath)
 	for i in range(256):
 		fontWidths += str(f.get_string_size(char(i), 0, -1, 1000).x) + " "
 	fontWidths += "]"
