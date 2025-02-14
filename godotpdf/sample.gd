@@ -15,8 +15,8 @@ func _ready():
 	# Format is (page number, position, text, font size)
 	# Pages are 612x792 units
 	# Font size is optional (Default is 12pt)
-	PDF.newLabel(1, Vector2(10,10), "Hello world")
-	PDF.newLabel(1, Vector2(10,30), "GodotPDF is awesome!", 20)
+	PDF.newLabel(1, Vector2(250,10), "Hello world")
+	PDF.newLabel(1, Vector2(250,30), "GodotPDF is awesome!", 20)
 	
 	# Add a new page
 	# The first page is automatically added when initializing the PDF
@@ -28,13 +28,21 @@ func _ready():
 	# Setting either fill color or border color to null results in no fill/border
 	# Default settings are black fill, no border, border width: 2
 	PDF.newBox(2, Vector2(100, 100), Vector2(100, 300))
-	PDF.newBox(2, Vector2(200, 400), Vector2(500, 100), Color.GREEN, Color.REBECCA_PURPLE, 10)
+	PDF.newBox(2, Vector2(200, 450), Vector2(300, 100), Color.GREEN, Color.REBECCA_PURPLE, 10)
+	
+	# Add some images
+	# Format is (page number, position, image, size(Optional))
+	# Size will default to default image size
+	# Try to only use png and jpeg images
+	var image = Image.load_from_file("res://addons/godotpdf/icon.png")
+	PDF.newImage(1, Vector2(20, 20), image, Vector2(200,200))
 	
 	# Set the path to export the pdf to
 	# The target file MUST be of the .pdf type
 	var path = getDesktopPath() + "/GodotPDF.pdf"
 	
 	# Export the pdf data
+	# Images will ALWAYS draw behind boxes, which will ALWAYS draw behind text
 	var status = PDF.export(path)
 	
 	# Print export status
