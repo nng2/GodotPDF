@@ -187,15 +187,24 @@ func export(path : String) -> bool:
 	return true
 
 func _addFont(font, contentLength, file : FileAccess):
+	var fontWidths = "["
+	var f = load(font.fontPath)
+	for i in range(256):
+		fontWidths += str(f.get_string_size(char(i), 0, -1, 1000).x) + " "
+	fontWidths += "]"
+	
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
 	ret += "/Type /Font\n/Subtype /TrueType\n/BaseFont /" + font.fontName + "\n"
-	ret += "/FontDescriptor " + str(len(_xref)+1) + " 0 R"
+	ret += "/FontDescriptor " + str(len(_xref)+1) + " 0 R\n"
+	ret += "/FirstChar 0\n/LastChar 255\n"
+	ret += "/Widths " + fontWidths
 	ret += "\n>>\nendobj\n"
 	
 	_xref.append(len(ret) + contentLength)
 	ret += str(len(_xref)) + " 0 obj\n<<\n"
 	ret += "/Type /FontDescriptor\n/FontName /" + font.fontName + "\n"
-	ret += "/FontFile2 " + str(len(_xref)+1) + " 0 R"
+	ret += "/FontFile2 " + str(len(_xref)+1) + " 0 R\n"
+	ret += "/Flags 6\n/FontBBox [-1000 -1000 1000 1000]\n/MissingWidth 500"
 	ret += "\n>>\nendobj\n"
 	
 	_xref.append(len(ret) + contentLength)
