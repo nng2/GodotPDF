@@ -61,6 +61,7 @@ func newPDF(t="", c=""):
 	_title = t
 	_creator = c
 	_fontList = ["Helvetica"]
+	_fonts = []
 
 func setTitle(t):
 	_title = t
