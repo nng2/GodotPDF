@@ -3,19 +3,22 @@ extends Control
 var _xref = []
 var _xrefOffset = 0
 var _pages = []
+var _fonts = []
+var _fontList = []
 var _title = ""
 var _creator = ""
 var _pageSize = Vector2i(612, 792)
-var _font = "Helvetica"
 
 class _text:
-	func _init(text="", size=12, position=Vector2i(0,0)) -> void:
+	func _init(text="", size=12, position=Vector2i(0,0), font="Helvetica") -> void:
 		self.text = text
 		self.fontSize = size
 		self.position = position
+		self.font = font
 	var text = ""
 	var fontSize = 12
 	var position = Vector2i(0,0)
+	var font = "Helvetica"
 
 class _box:
 	func _init(position=Vector2i(0,0), size=Vector2i(0,0), border=Color(0.0,0.0,0.0,1.0), fill=Color(0.0,0.0,0.0,1.0), borderWidth=10) -> void:
@@ -46,10 +49,18 @@ class _page:
 	var boxes = []
 	var images = []
 
+class _font:
+	func _init(name, path) -> void:
+		self.fontName = name
+		self.fontPath = path
+	var fontName = ""
+	var fontPath = ""
+
 func newPDF(t="", c=""):
 	_pages = [_page.new()]
 	_title = t
 	_creator = c
+	_fontList = ["Helvetica"]
 
 func setTitle(t):
 	_title = t
@@ -57,24 +68,20 @@ func setTitle(t):
 func setCreator(c):
 	_creator = c
 
-func setFont(f):
-	if f == "Times Roman" or f == "Helvetical" or f == "Courier":
-		_font = f
-
 func newPage() -> bool:
 	_pages.append(_page.new())
 	return true
 
-func newLabel(pageNum : int, labelPosition, labelText : String, labelSize=12) -> bool:
+func newLabel(pageNum : int, labelPosition, labelText : String, labelSize=12, font="Helvetica") -> bool:
 	if labelPosition is Vector2:
 		labelPosition = Vector2i(labelPosition)
 	if not labelPosition is Vector2i:
 		return false
-	var label = _text.new(labelText, labelSize, Vector2i(labelPosition.x, _pageSize.y-labelPosition.y))
+	var label = _text.new(labelText, labelSize, Vector2i(labelPosition.x, _pageSize.y-labelPosition.y), font)
 	_pages[pageNum-1].text.append(label)
 	return true
 
-func newBox(pageNum : int, boxPosition, boxSize, fill : Color = Color(0.0,0.0,0.0,1.0), border=null, borderWidth : int = 2) -> bool:
+func newBox(pageNum : int, boxPosition, boxSize, fill = Color(0.0,0.0,0.0,1.0), border=null, borderWidth : int = 2) -> bool:
 	if boxPosition is Vector2:
 		boxPosition = Vector2i(boxPosition)
 	if not boxPosition is Vector2i:
@@ -109,6 +116,12 @@ func newImage(pageNum : int, imagePosition, baseImage : Image, imageSize = null)
 	_pages[pageNum-1].images.append(image)
 	return true
 
+func newFont(fontName : String, fontPath : String) -> bool:
+	var font = _font.new(fontName, fontPath)
+	_fonts.append(font)
+	_fontList.append(fontName)
+	return true
+
 func export(path : String) -> bool:
 	totalImages = 0
 	totalPages = len(_pages)
@@ -130,26 +143,35 @@ func export(path : String) -> bool:
 	_xref.append(len(content))				# save byte offset of next object to xref table
 	content += _addInfo("Test", "Nolan")		# add new info object
 	
+	# Add default font
 	_xref.append(len(content))
-	content += _addFont()					# add font object
+	content += str(len(_xref)) + " 0 obj\n<<\n"
+	content += "/Type /Font\n/Subtype /Type1\n/BaseFont /Helvetica"
+	content += "\n>>\nendobj\n"
+	file.store_string(content)
+	var fontOffset = len(content)
+	content = ""
+	for i in _fonts:
+		_xref.append(len(content) + fontOffset)
+		fontOffset += _addFont(i, len(content) + fontOffset, file)					# add font object
 	
-	_xref.append(len(content))
+	_xref.append(len(content) + fontOffset)
 	content += _addPageTree()			# add page tree
 	
 	while(len(_pages) > 0):
-		_xref.append(len(content))
+		_xref.append(len(content) + fontOffset)
 		content += _addPage()				# add new page
-		_xref.append(len(content))
+		_xref.append(len(content) + fontOffset)
 		content += _addPageContent()			# add content for new page
 	
 	# add pages tree and catalog last
-	_xref.append(len(content))
+	_xref.append(len(content) + fontOffset)
 	content += _addCatalog()
 	var root = len(_xref)
 	
 	# add image dictionaries
 	file.store_string(content)
-	var offset = len(content)
+	var offset = len(content) + fontOffset
 	content = ""
 	offset += _addImageDictionary(offset, images, file)
 	
@@ -163,11 +185,33 @@ func export(path : String) -> bool:
 	
 	return true
 
-func _addFont():
+func _addFont(font, contentLength, file : FileAccess):
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
-	ret += "/Type /Font\n/Subtype /Type1\n/BaseFont /" + _font
+	ret += "/Type /Font\n/Subtype /TrueType\n/BaseFont /" + font.fontName + "\n"
+	ret += "/FontDescriptor " + str(len(_xref)+1) + " 0 R"
 	ret += "\n>>\nendobj\n"
-	return ret
+	
+	_xref.append(len(ret) + contentLength)
+	ret += str(len(_xref)) + " 0 obj\n<<\n"
+	ret += "/Type /FontDescriptor\n/FontName /" + font.fontName + "\n"
+	ret += "/FontFile2 " + str(len(_xref)+1) + " 0 R"
+	ret += "\n>>\nendobj\n"
+	
+	_xref.append(len(ret) + contentLength)
+	ret += str(len(_xref)) + " 0 obj\n<<\n"
+	var fontStream = FileAccess.get_file_as_bytes(font.fontPath)
+	var offset = len(fontStream)
+	ret += "/Length " + str(offset) + "\n" + "/Length1 " + str(offset)
+	ret += "\n>>\nstream\n"
+	file.store_string(ret)
+	offset += len(ret)
+	for b in fontStream:
+		file.store_8(b)
+	ret = "\nendstream\nendobj\n"
+	file.store_string(ret)
+	offset += len(ret)
+	
+	return offset
 
 func _addInfo(Title=null, Creator=null):
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
@@ -205,7 +249,7 @@ func _buildTrailer(root):
 func _addCatalog():
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
 	ret += "/Type /Catalog\n"
-	ret += "/Pages 3 0 R\n"
+	ret += "/Pages " + str(3 + ((len(_fontList)-1)*3)) + " 0 R\n"
 	ret += ">>\nendobj\n"
 	return ret
 
@@ -217,7 +261,7 @@ func _addPageTree():
 	var pageNum = -1
 	for i in _pages:
 		pageNum += 1
-		ret += str(4 + (pageNum*2)) + " 0 R "
+		ret += str(4 + ((len(_fontList)-1)*3) + (pageNum*2)) + " 0 R "
 	ret += "]\n"
 	ret += ">>\nendobj\n"
 	return ret
@@ -227,16 +271,19 @@ var totalPages = 0
 func _addPage():
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
 	ret += "/Type /Page\n"
-	ret += "/Parent 3 0 R\n"
-	ret += "/Resources <</Font <</F1 2 0 R>> /XObject <<"
+	ret += "/Parent " + str(3 + ((len(_fontList)-1)*3)) + " 0 R\n"
+	ret += "/Resources <</Font <</F0 2 0 R"
+	for f in range(len(_fonts)):
+		ret += " /F" + str(f+1) + " " + str((f*3)+3) + " 0 R"
+	ret += ">> /XObject <<"
 	var imageNum = 0
 	for i in _pages[0].images:
 		imageNum += 1
-		ret += "/Im" + str(imageNum) + " " + str(totalImages + (totalPages*2) + 5) + " 0 R "
+		ret += "/Im" + str(imageNum) + " " + str(totalImages + ((len(_fontList)-1)*3) + (totalPages*2) + 5) + " 0 R "
 		totalImages += 1
 	ret += ">>>>\n"
 	ret += "/Contents [" + str(len(_xref)+1) + " 0 R]\n"
-	ret += ">>\nendobj>>\n"
+	ret += ">>\nendobj\n"
 	return ret
 
 func _addImageDictionary(contentLength, images, file : FileAccess):
@@ -323,7 +370,7 @@ func _addPageContent():
 		var lastPos = null
 		var lastSize = 0
 		for i in textContent:
-			contentStream += "/F1 " + str(i.fontSize) + " Tf\n"
+			contentStream += "/F" + str(_fontList.find(i.font)) + " " + str(i.fontSize) + " Tf\n"
 			if lastPos:
 				contentStream += str(i.position.x - lastPos.x) + " " + str((i.position.y - i.fontSize) - (lastPos.y - lastSize)) + " Td\n"
 			else:
