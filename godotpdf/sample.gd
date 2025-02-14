@@ -12,11 +12,18 @@ func _ready():
 	# Use returns to verify functions are running correctly
 	
 	# Add some text to page 1
-	# Format is (page number, position, text, font size)
+	# Format is (page number, position, text, font size, font)
 	# Pages are 612x792 units
 	# Font size is optional (Default is 12pt)
+	# Font is optional (Default is Helvetica)
+	# Fonts MUST be added prior to using them
 	PDF.newLabel(1, Vector2(250,10), "Hello world")
-	PDF.newLabel(1, Vector2(250,30), "GodotPDF is awesome!", 20)
+	
+	# Add a new font and a new label using the font
+	# Format is (fontName, fontPath)
+	# Path MUST be to .ttf file
+	PDF.newFont("Amplify", "res://addons/godotpdf/Amplify.ttf")
+	PDF.newLabel(1, Vector2(250,30), "GodotPDF is awesome!", 20, "Amplify")
 	
 	# Add a new page
 	# The first page is automatically added when initializing the PDF
