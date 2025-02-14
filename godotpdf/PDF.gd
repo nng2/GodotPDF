@@ -30,9 +30,21 @@ class _box:
 	var border = null
 	var borderWidth = 10
 
+class _image:
+	func _init(position=Vector2i(0,0), size=Vector2i(0,0), data="", format=Image.FORMAT_RGBA8) -> void:
+		self.position = position
+		self.size = size
+		self.dataStream = data
+		self.format = format
+	var position = Vector2i(0,0)
+	var size = Vector2i(0,0)
+	var dataStream = ""
+	var format=Image.FORMAT_RGBA8
+
 class _page:
 	var text = []
 	var boxes = []
+	var images = []
 
 func newPDF(t="", c=""):
 	_pages = [_page.new()]
@@ -62,7 +74,7 @@ func newLabel(pageNum : int, labelPosition, labelText : String, labelSize=12) ->
 	_pages[pageNum-1].text.append(label)
 	return true
 
-func newBox(pageNum : int, boxPosition, boxSize, fill = Color(0.0,0.0,0.0,1.0), border=null, borderWidth : int = 2) -> bool:
+func newBox(pageNum : int, boxPosition, boxSize, fill : Color = Color(0.0,0.0,0.0,1.0), border=null, borderWidth : int = 2) -> bool:
 	if boxPosition is Vector2:
 		boxPosition = Vector2i(boxPosition)
 	if not boxPosition is Vector2i:
@@ -79,7 +91,32 @@ func newBox(pageNum : int, boxPosition, boxSize, fill = Color(0.0,0.0,0.0,1.0), 
 	_pages[pageNum-1].boxes.append(box)
 	return true
 
+func newImage(pageNum : int, imagePosition, baseImage : Image, imageSize = null):
+	if baseImage.get_format() != Image.FORMAT_RGB8 and baseImage.get_format() != Image.FORMAT_RGBA8:
+		return false
+	if imagePosition is Vector2:
+		imagePosition = Vector2i(imagePosition)
+	if not imagePosition is Vector2i:
+		return false
+	if imageSize == null:
+		imageSize = baseImage.get_size()
+	if imageSize is Vector2:
+		imageSize = Vector2i(imageSize)
+	if not imageSize is Vector2i:
+		return false
+	baseImage.resize(imageSize.x, imageSize.y)
+	var image = _image.new(Vector2i(imagePosition.x, _pageSize.y-imagePosition.y-(imageSize.y)), baseImage.get_size(), baseImage.get_data(), baseImage.get_format())
+	_pages[pageNum-1].images.append(image)
+	return true
+
 func export(path : String) -> bool:
+	totalImages = 0
+	totalPages = len(_pages)
+	var images = []
+	for p in _pages:
+		for i in p.images:
+			images.append(i)
+	
 	if path == null or path == "" or len(path) < 5 or path.substr(len(path)-4) != ".pdf":
 		return false
 	
@@ -108,11 +145,18 @@ func export(path : String) -> bool:
 	# add pages tree and catalog last
 	_xref.append(len(content))
 	content += _addCatalog()
+	var root = len(_xref)
+	
+	# add image dictionaries
+	file.store_string(content)
+	var offset = len(content)
+	content = ""
+	offset += _addImageDictionary(offset, images, file)
 	
 	# adds xref and footer information
-	_xrefOffset = len(content)
+	_xrefOffset = len(content)+offset
 	content += _buildXref()
-	content += _buildTrailer()
+	content += _buildTrailer(root)
 	
 	file.store_string(content)
 	file.close()
@@ -149,10 +193,10 @@ func _paddedOffset(offset):
 	ret += str(offset)
 	return ret
 
-func _buildTrailer():
+func _buildTrailer(root):
 	var ret = "trailer\n<<\n"
 	ret += "/Size " + str(len(_xref)+1) + "\n"
-	ret += "/Root " + str(len(_xref)) + " 0 R\n"
+	ret += "/Root " + str(root) + " 0 R\n"
 	ret += "/Info 1 0 R\n"
 	ret += ">>\nstartxref\n"
 	ret += str(_xrefOffset) + "\n%%EOF"
@@ -178,20 +222,83 @@ func _addPageTree():
 	ret += ">>\nendobj\n"
 	return ret
 
+var totalImages = 0
+var totalPages = 0
 func _addPage():
 	var ret = str(len(_xref)) + " 0 obj\n<<\n"
 	ret += "/Type /Page\n"
 	ret += "/Parent 3 0 R\n"
-	ret += "/Resources <</Font <</F1 2 0 R>>>>\n"
+	ret += "/Resources <</Font <</F1 2 0 R>> /XObject <<"
+	var imageNum = 0
+	for i in _pages[0].images:
+		imageNum += 1
+		ret += "/Im" + str(imageNum) + " " + str(totalImages + (totalPages*2) + 5) + " 0 R "
+		totalImages += 1
+	ret += ">>>>\n"
 	ret += "/Contents [" + str(len(_xref)+1) + " 0 R]\n"
 	ret += ">>\nendobj>>\n"
 	return ret
 
+func _addImageDictionary(contentLength, images, file : FileAccess):
+	var offset = 0
+	for i in images:
+		_xref.append(contentLength + offset)
+		var ret = str(len(_xref)) + " 0 obj\n<<\n"
+		ret += "/Type /XObject\n/Subtype /Image\n"
+		ret += "/Width " + str(i.size.x) + "\n"
+		ret += "/Height " + str(i.size.y) + "\n"
+		ret += "/ColorSpace /DeviceRGB\n/BitsPerComponent 8\n"
+		ret += "/Length " + _getImageLength(len(i.dataStream), i.format) + "\n>>\n"
+		ret += "stream\n"
+		file.store_string(ret)
+		offset += len(ret)
+		
+		# Add dataStreamAsBytes
+		match(i.format):
+			Image.FORMAT_RGBA8:
+				for j in range(len(i.dataStream)/4):
+					if i.dataStream[(j*4)+3] == 0:
+						file.store_8(255)
+						file.store_8(255)
+						file.store_8(255)
+					else:
+						file.store_8(i.dataStream[j*4])
+						file.store_8(i.dataStream[(j*4)+1])
+						file.store_8(i.dataStream[(j*4)+2])
+					offset += 3
+			Image.FORMAT_RGB8:
+				for j in i.dataStream:
+					file.store_8(j)
+					offset += 1
+					
+		ret = "\nendstream\nendobj\n"
+		file.store_string(ret)
+		offset += len(ret)
+	return offset
+
+func _getImageLength(dataSize, format) -> String:
+	match(format):
+		Image.FORMAT_RGBA8:
+			return str((dataSize/4)*3)
+		Image.FORMAT_RGB8:
+			return str(dataSize)
+
+	return str(dataSize)
+
 func _addPageContent():
 	var textContent = _pages[0].text
 	var boxContent = _pages[0].boxes
+	var imageContent = _pages[0].images
 	var contentStream = ""
 	_pages.remove_at(0)
+	if len(imageContent) > 0:	# Draw images
+		var imageNum = 0
+		for i in imageContent:
+			imageNum += 1
+			contentStream += "q\n"
+			contentStream += str(i.size.x) + " 0 0 " + str(i.size.y) + " " + str(i.position.x) + " " + str(i.position.y) + " cm\n"
+			contentStream += "/Im" + str(imageNum) + " Do\n"
+			contentStream += "Q\n"
 	if len(boxContent) > 0:		# Draw boxes
 		for x in range(len(boxContent)):
 			var i = boxContent[x]
