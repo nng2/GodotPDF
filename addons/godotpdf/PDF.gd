@@ -100,7 +100,7 @@ func newBox(pageNum : int, boxPosition, boxSize, fill = Color(0.0,0.0,0.0,1.0), 
 	return true
 
 func newImage(pageNum : int, imagePosition, baseImage : Image, imageSize = null):
-	if baseImage.get_format() != Image.FORMAT_RGB8 and baseImage.get_format() != Image.FORMAT_RGBA8:
+	if baseImage == null or (baseImage.get_format() != Image.FORMAT_RGB8 and baseImage.get_format() != Image.FORMAT_RGBA8):
 		return false
 	if imagePosition is Vector2:
 		imagePosition = Vector2i(imagePosition)
